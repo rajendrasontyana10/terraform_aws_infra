@@ -1,5 +1,4 @@
 resource "aws_instance" "app1" {
-  ami           = var.ami
   instance_type = "t2.micro"
   subnet_id     = var.subnet_id
 
@@ -19,7 +18,7 @@ resource "aws_instance" "jenkins-ec2" {
   tags = {
     "Name" = "Jenkins"
     "Server" = "Jenkins"
-    "AZ" = "useast-1"
+    "AZ" = "us-east-1"
   }
 
   user_data = abs(file("./jenkins_user_data.sh"))
