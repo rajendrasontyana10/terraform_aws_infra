@@ -1,74 +1,164 @@
-
-parameters{
-    choice = name: 'ENV', choices: ['dev', 'prod'], description: 'Select the environment to deploy'
-    string = name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS Region to deploy resources'
-    string = name: 'AWS_PROFILE', defaultValue: 'default', description: 'AWS CLI profile to use for deployment'
-    string = name: 'GIT_REPO_URL', defaultValue: 'https://github.com/terraform_aws_infra.git', description: 'Git repository URL for Terraform code'
-    choice = name: 'BRANCH', choices: ['main', 'develop'], description: 'Git branch to checkout for Terraform code'
-    string = name: 'GIT_CREDENTIALS_ID', defaultValue: 'rajendra-git', description: 'Jenkins credentials ID for Git access'
-}
-
 pipeline {
     agent any
 
+    parameters {
+        choice(
+            name: 'ENV',
+            choices: ['dev', 'prod'],
+            description: 'Select the environment to deploy'
+        )
+        string(
+            name: 'AWS_REGION',
+            defaultValue: 'us-east-1',
+            description: 'AWS Region to deploy resources'
+        )
+        string(
+            name: 'AWS_PROFILE',
+            defaultValue: 'default',
+            description: 'AWS CLI profile to use for deployment'
+        )
+        string(
+            name: 'GIT_REPO_URL',
+            defaultValue: 'https://github.com/terraform_aws_infra.git',
+            description: 'Git repository URL for Terraform code'
+        )
+        choice(
+            name: 'BRANCH',
+            choices: ['main', 'develop'],
+            description: 'Git branch to checkout for Terraform code'
+        )
+        string(
+            name: 'GIT_CREDENTIALS_ID',
+            defaultValue: 'rajendra-git',
+            description: 'Jenkins credentials ID for Git access'
+        )
+    }
+
     environment {
         TF_ROOT = 'infrastructure'
-        ENV = "${ENV}"
-        AWS_REGION = "${AWS_REGION}"
-        AWS_PROFILE = "${AWS_PROFILE}"
-        BRANCH = "${BRANCH}"
-        GIT_CREDENTIALS_ID = "${GIT_CREDENTIALS_ID}"
-        GIT_REPO_URL = "${GIT_REPO_URL}"
+        TF_ENV_DIR = "${TF_ROOT}/envs/${params.ENV}"
+        AWS_REGION = "${params.AWS_REGION}"
+        AWS_PROFILE = "${params.AWS_PROFILE}"
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
-                git branch: "${BRANCH}", url: "${GIT_REPO_URL}", credentialsId: "${GIT_CREDENTIALS_ID}"
+                script {
+                    echo "Checking out ${params.BRANCH} from ${params.GIT_REPO_URL}"
+                }
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${params.BRANCH}"]],
+                    userRemoteConfigs: [[
+                        url: "${params.GIT_REPO_URL}",
+                        credentialsId: "${params.GIT_CREDENTIALS_ID}"
+                    ]]
+                ])
             }
         }
 
         stage('Terraform Init') {
             steps {
-                dir("${TF_ROOT}") {
-                    sh 'terraform init'
+                script {
+                    echo "Initializing Terraform in ${TF_ROOT}"
+                    dir("${TF_ROOT}") {
+                        sh 'terraform init -upgrade'
+                    }
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                dir("${TF_ROOT}") {
-                    sh 'terraform validate'
+                script {
+                    echo "Validating Terraform configuration"
+                    dir("${TF_ROOT}") {
+                        sh 'terraform validate'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Format Check') {
+            steps {
+                script {
+                    echo "Checking Terraform code formatting"
+                    dir("${TF_ROOT}") {
+                        sh 'terraform fmt -check -recursive'
+                    }
                 }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                dir("${TF_ROOT}") {
-                    sh 'terraform plan -out=tfplan'
+                script {
+                    echo "Planning Terraform deployment for ${params.ENV} environment"
+                    dir("${TF_ROOT}") {
+                        sh '''
+                            terraform plan \
+                                -var-file="envs/${ENV}/terraform.tfvars" \
+                                -out=tfplan
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Manual Approval') {
+            steps {
+                script {
+                    def userInput = input(
+                        id: 'ApprovalForDeploy',
+                        message: "Do you want to apply Terraform changes to ${params.ENV}?",
+                        ok: 'Apply',
+                        submitter: 'admin'
+                    )
+                    echo "Approved by: ${userInput}"
                 }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                input message: "Do you want to apply Terraform changes?"
-                dir("${TF_ROOT}") {
-                    sh 'terraform apply -auto-approve tfplan'
+                script {
+                    echo "Applying Terraform changes"
+                    dir("${TF_ROOT}") {
+                        sh '''
+                            terraform apply \
+                                -var-file="envs/${ENV}/terraform.tfvars" \
+                                -auto-approve
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Output') {
+            steps {
+                script {
+                    echo "Displaying Terraform outputs"
+                    dir("${TF_ROOT}") {
+                        sh 'terraform output'
+                    }
                 }
             }
         }
     }
 
     post {
+        always {
+            script {
+                echo "Pipeline execution completed"
+                cleanWs()
+            }
+        }
         success {
-            echo '✅ Infrastructure deployed successfully!'
+            echo "✅ Infrastructure deployed successfully to ${params.ENV}!"
         }
         failure {
-            echo '❌ Deployment failed!'
+            echo "❌ Deployment failed! Check logs for details."
         }
     }
 }
