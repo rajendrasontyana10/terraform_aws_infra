@@ -17,3 +17,8 @@ output "public_subnet_azs" {
   description = "Availability zones of public subnets"
   value       = aws_subnet.public[*].availability_zone
 }
+
+output "configured_azs" {
+  description = "Configured AZs for this region"
+  value       = ["us-east-1a", "us-east-1b"]
+}
