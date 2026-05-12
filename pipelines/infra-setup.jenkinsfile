@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+
+    environment {
+        TF_ROOT = 'infrastructure'
+        ENV = 'dev'
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/terraform_aws_infra.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir("${TF_ROOT}") {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                dir("${TF_ROOT}") {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir("${TF_ROOT}") {
+                    sh 'terraform plan -out=tfplan'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                input message: "Do you want to apply Terraform changes?"
+                dir("${TF_ROOT}") {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Infrastructure deployed successfully!'
+        }
+        failure {
+            echo '❌ Deployment failed!'
+        }
+    }
+}
