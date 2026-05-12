@@ -7,13 +7,19 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "terraform-state-dev-rajendra"
-    key            = "infrastructure/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
-  }
+  # For dev environment, using local backend
+  # To use S3 backend later, create:
+  # 1. S3 bucket: terraform-state-dev-rajendra
+  # 2. DynamoDB table: terraform-locks with LockID (String) as primary key
+  # Then uncomment the backend block below and run: terraform init -migrate-state
+  
+  # backend "s3" {
+  #   bucket         = "terraform-state-dev-rajendra"
+  #   key            = "infrastructure/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   encrypt        = true
+  #   dynamodb_table = "terraform-locks"
+  # }
 }
 
 data "aws_ami" "amazon_linux" {

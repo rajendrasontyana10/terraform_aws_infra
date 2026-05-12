@@ -7,13 +7,18 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "terraform-state-prod"
-    key            = "infrastructure/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
-  }
+  # For production, S3 backend with DynamoDB locking is required
+  # Before using this, create:
+  # 1. S3 bucket: terraform-state-prod (with versioning enabled)
+  # 2. DynamoDB table: terraform-locks with LockID (String) as primary key
+  
+    #   backend "s3" {
+    #     bucket         = "terraform-state-prod"
+    #     key            = "infrastructure/terraform.tfstate"
+    #     region         = "us-east-1"
+    #     encrypt        = true
+    #     dynamodb_table = "terraform-locks"
+    #   }
 }
 
 data "aws_ami" "amazon_linux" {
