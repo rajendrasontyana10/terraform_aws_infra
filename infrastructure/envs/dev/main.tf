@@ -73,3 +73,13 @@ output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
 }
+
+output "public_subnets_debug" {
+  description = "Debug: Public subnets being passed to ALB"
+  value       = module.vpc.public_subnet
+}
+
+output "public_subnets_azs" {
+  description = "Debug: Availability zones of public subnets"
+  value       = module.vpc.public_subnet_azs
+}

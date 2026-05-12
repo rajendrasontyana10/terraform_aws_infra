@@ -12,15 +12,25 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+# Ensure we have at least 2 AZs available
+locals {
+  azs = data.aws_availability_zones.available.names
+  az_count = length(local.azs)
+  
+  # Assign AZs to subnets, cycling through available AZs
+  public_subnet_azs  = [for i in range(length(var.public_subnet)) : local.azs[i % local.az_count]]
+  private_subnet_azs = [for i in range(length(var.private_subnet)) : local.azs[i % local.az_count]]
+}
+
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet)
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet[count.index]
-  availability_zone       = data.aws_availability_zones.available.names[count.index % length(data.aws_availability_zones.available.names)]
+  availability_zone       = local.public_subnet_azs[count.index]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "public-subnet-${count.index + 1}"
+    Name = "public-subnet-${count.index + 1}-${local.public_subnet_azs[count.index]}"
   }
 }
 
@@ -28,10 +38,10 @@ resource "aws_subnet" "private" {
   count              = length(var.private_subnet)
   vpc_id             = aws_vpc.main.id
   cidr_block         = var.private_subnet[count.index]
-  availability_zone  = data.aws_availability_zones.available.names[count.index % length(data.aws_availability_zones.available.names)]
+  availability_zone  = local.private_subnet_azs[count.index]
 
   tags = {
-    Name = "private-subnet-${count.index + 1}"
+    Name = "private-subnet-${count.index + 1}-${local.private_subnet_azs[count.index]}"
   }
 }
 
