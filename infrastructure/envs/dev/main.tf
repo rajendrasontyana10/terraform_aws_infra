@@ -46,7 +46,7 @@ module "security_group" {
 
 module "compute" {
   source    = "../../modules/Compute"
-  subnet_id = module.vpc.private_subnet[0]
+  subnet_id = module.vpc.private_subnet
   sg_id     = module.security_group.sg_id
   ami       = data.aws_ami.amazon_linux.id
 }
@@ -54,7 +54,7 @@ module "compute" {
 module "alb" {
   source      = "../../modules/Loadbalancer"
   vpc_id      = module.vpc.vpc_id
-  subnet_id   = module.vpc.public_subnet[0]
+  subnet_id   = module.vpc.public_subnet
   alb_sg_id   = module.security_group.alb_sg_id
   instance_id = module.compute.instance_id
 }
