@@ -4,6 +4,12 @@ set -e
 # Log output
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
+
+#Sleep 120
+sleep 120
+echo "Starting Jenkins setup at $(date)"
+echo "Updating system and installing dependencies..."
+
 # Update system
 yum update -y
 
@@ -17,6 +23,9 @@ cd /opt
 curl -LO https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz
 tar -xzf amazon-corretto-21-x64-linux-jdk.tar.gz
 mv amazon-corretto-21.* /opt/java21
+
+sleep 10
+echo "Java 21 installed at /opt/java21"
 
 # ----------------------------
 # Install Jenkins
@@ -32,6 +41,9 @@ EOF
 
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
 yum install -y jenkins
+
+sleep 10
+echo "Jenkins installed successfully"
 
 # ----------------------------
 # Force Jenkins to use Java 21
@@ -54,3 +66,6 @@ systemctl daemon-reexec
 systemctl daemon-reload
 systemctl enable jenkins
 systemctl start jenkins
+
+echo "Jenkins setup completed at $(date)"
+echo "You can access Jenkins"
