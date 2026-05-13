@@ -4,6 +4,10 @@ set -e
 # Log output
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
+
+#Sleep 120
+sleep 120
+
 # Update system
 yum update -y
 
