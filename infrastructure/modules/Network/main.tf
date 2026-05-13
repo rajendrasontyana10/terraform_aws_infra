@@ -46,6 +46,21 @@ resource "aws_subnet" "private" {
   }
 }
 
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = concat(
+    aws_route_table.private[*].id,
+    [aws_route_table.public.id]
+  )
+
+  tags = {
+    Name = "s3-endpoint"
+  }
+}
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
@@ -102,7 +117,7 @@ resource "aws_route_table" "private" {
   
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat[count.index % length(aws_nat_gateway.nat)].id
+    nat_gateway_id = aws_nat_gateway.nat[count.index].id
   }
 
   tags = {
@@ -118,70 +133,70 @@ resource "aws_route_table_association" "private" {
 
 # VPC Endpoints for SSM (Systems Manager)
 # This allows EC2 instances in private subnets to connect to SSM without NAT Gateway
-resource "aws_vpc_endpoint" "ssm" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssm"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
+# resource "aws_vpc_endpoint" "ssm" {
+#   vpc_id              = aws_vpc.main.id
+#   service_name        = "com.amazonaws.${data.aws_region.current.name}.ssm"
+#   vpc_endpoint_type   = "Interface"
+#   private_dns_enabled = true
 
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpce_sg.id]
+#   subnet_ids          = aws_subnet.private[*].id
+#   security_group_ids  = [aws_security_group.vpce_sg.id]
 
-  tags = {
-    Name = "ssm-endpoint"
-  }
-}
+#   tags = {
+#     Name = "ssm-endpoint"
+#   }
+# }
 
-resource "aws_vpc_endpoint" "ssmmessages" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssmmessages"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
+# resource "aws_vpc_endpoint" "ssmmessages" {
+#   vpc_id              = aws_vpc.main.id
+#   service_name        = "com.amazonaws.${data.aws_region.current.name}.ssmmessages"
+#   vpc_endpoint_type   = "Interface"
+#   private_dns_enabled = true
 
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpce_sg.id]
+#   subnet_ids          = aws_subnet.private[*].id
+#   security_group_ids  = [aws_security_group.vpce_sg.id]
 
-  tags = {
-    Name = "ssmmessages-endpoint"
-  }
-}
+#   tags = {
+#     Name = "ssmmessages-endpoint"
+#   }
+# }
 
-resource "aws_vpc_endpoint" "ec2messages" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ec2messages"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
+# resource "aws_vpc_endpoint" "ec2messages" {
+#   vpc_id              = aws_vpc.main.id
+#   service_name        = "com.amazonaws.${data.aws_region.current.name}.ec2messages"
+#   vpc_endpoint_type   = "Interface"
+#   private_dns_enabled = true
 
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpce_sg.id]
+#   subnet_ids          = aws_subnet.private[*].id
+#   security_group_ids  = [aws_security_group.vpce_sg.id]
 
-  tags = {
-    Name = "ec2messages-endpoint"
-  }
-}
+#   tags = {
+#     Name = "ec2messages-endpoint"
+#   }
+# }
 
-# Security group for VPC Endpoints
-resource "aws_security_group" "vpce_sg" {
-  vpc_id = aws_vpc.main.id
+# # Security group for VPC Endpoints
+# resource "aws_security_group" "vpce_sg" {
+#   vpc_id = aws_vpc.main.id
   
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
+#   ingress {
+#     from_port   = 443
+#     to_port     = 443
+#     protocol    = "tcp"
+#     cidr_blocks = [var.vpc_cidr]
+#   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+#   egress {
+#     from_port   = 0
+#     to_port     = 0
+#     protocol    = "-1"
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
 
-  tags = {
-    Name = "vpce-sg"
-  }
-}
+#   tags = {
+#     Name = "vpce-sg"
+#   }
+# }
 
-# Data source to get current region
+# # Data source to get current region
 data "aws_region" "current" {}
