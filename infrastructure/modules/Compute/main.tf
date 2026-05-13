@@ -29,21 +29,6 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-resource "aws_instance" "app" {
-  ami                  = var.ami
-  instance_type        = "t2.micro"
-  subnet_id            = var.subnet_id
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
-
-  vpc_security_group_ids = [var.sg_id]
-
-  associate_public_ip_address = false
-
-  tags = {
-    Name = "App-Server"
-  }
-}
-
 resource "aws_instance" "jenkins" {
   ami                  = var.ami
   instance_type        = "t2.micro"
