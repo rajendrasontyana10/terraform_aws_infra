@@ -45,7 +45,7 @@ terraform -version
 echo "✅ Terraform installed"
 
 # ----------------------------
-# Install Java 21 (✅ FIXED)
+# Install Java 21
 # ----------------------------
 echo "Installing Java 21..."
 
@@ -54,7 +54,7 @@ wget https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.
 tar -xzf amazon-corretto-21-x64-linux-jdk.tar.gz
 mv amazon-corretto-21.* /opt/java21
 
-# Set Java 21 as default (IMPORTANT)
+# Set Java 21 as default
 alternatives --install /usr/bin/java java /opt/java21/bin/java 1
 alternatives --set java /opt/java21/bin/java
 
@@ -90,13 +90,34 @@ if ! rpm -qa | grep -q jenkins; then
   yum install -y jenkins --nogpgcheck
 fi
 
-# Verify
+# Verify install
 if rpm -qa | grep -q jenkins; then
   echo "✅ Jenkins installed"
 else
   echo "❌ Jenkins install failed"
   exit 1
 fi
+
+# ----------------------------
+# Disable Jenkins setup wizard (🔥 CRITICAL FIX)
+# ----------------------------
+echo "Disabling Jenkins setup wizard..."
+
+mkdir -p /var/lib/jenkins
+chown -R jenkins:jenkins /var/lib/jenkins
+
+# Skip plugin installation wizard
+echo "2.0" > /var/lib/jenkins/jenkins.install.UpgradeWizard.state
+
+# Force Jenkins to think setup is completed
+mkdir -p /var/lib/jenkins/init.groovy.d
+
+cat <<EOF > /var/lib/jenkins/init.groovy.d/basic-security.groovy
+import jenkins.model.*
+Jenkins.instance.setInstallState(jenkins.install.InstallState.INITIAL_SETUP_COMPLETED)
+EOF
+
+chown -R jenkins:jenkins /var/lib/jenkins
 
 # ----------------------------
 # Start Jenkins
@@ -108,7 +129,9 @@ systemctl daemon-reload
 systemctl enable jenkins
 systemctl start jenkins
 
-# Wait until Jenkins is ready
+# ----------------------------
+# Wait for Jenkins to be ready
+# ----------------------------
 echo "Waiting for Jenkins to become available..."
 
 for i in {1..30}; do
@@ -129,3 +152,4 @@ else
 fi
 
 echo "===== Jenkins setup completed at $(date) ====="
+``
