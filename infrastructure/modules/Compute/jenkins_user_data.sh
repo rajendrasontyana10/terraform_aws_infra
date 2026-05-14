@@ -7,7 +7,7 @@ exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&
 echo "===== Starting Jenkins setup at $(date) ====="
 
 # ----------------------------
-# Add swap (CRITICAL for Jenkins)
+# Add swap (CRITICAL)
 # ----------------------------
 fallocate -l 2G /swapfile
 chmod 600 /swapfile
@@ -27,8 +27,10 @@ for i in {1..5}; do
   yum update -y && break || sleep 20
 done
 
-# Install tools
-yum install -y curl unzip wget
+# ----------------------------
+# Install required tools + fonts (🔥 FINAL FIX)
+# ----------------------------
+yum install -y curl unzip wget fontconfig dejavu-sans-fonts
 
 # ----------------------------
 # Install Terraform
@@ -54,7 +56,6 @@ wget https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.
 tar -xzf amazon-corretto-21-x64-linux-jdk.tar.gz
 mv amazon-corretto-21.* /opt/java21
 
-# Set Java 21 as default
 alternatives --install /usr/bin/java java /opt/java21/bin/java 1
 alternatives --set java /opt/java21/bin/java
 
@@ -62,7 +63,7 @@ java -version
 echo "✅ Java 21 installed"
 
 # ----------------------------
-# Install Jenkins
+# Install Jenkins (clean repo)
 # ----------------------------
 echo "Installing Jenkins..."
 
@@ -70,27 +71,15 @@ rm -f /etc/yum.repos.d/jenkins.repo
 
 cat <<EOF > /etc/yum.repos.d/jenkins.repo
 [jenkins]
-name=Jenkins-stable
+name=Jenkins
 baseurl=https://pkg.jenkins.io/redhat-stable
-gpgcheck=1
 enabled=1
-gpgkey=https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+gpgcheck=0
 EOF
 
-rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+# Install Jenkins
+yum install -y jenkins
 
-# Install Jenkins (retry)
-for i in {1..3}; do
-  yum install -y jenkins && break || sleep 20
-done
-
-# Fallback
-if ! rpm -qa | grep -q jenkins; then
-  echo "Retrying Jenkins install without GPG check..."
-  yum install -y jenkins --nogpgcheck
-fi
-
-# Verify install
 if rpm -qa | grep -q jenkins; then
   echo "✅ Jenkins installed"
 else
@@ -99,17 +88,15 @@ else
 fi
 
 # ----------------------------
-# Disable Jenkins setup wizard (🔥 CRITICAL FIX)
+# Disable setup wizard (NO plugin hang)
 # ----------------------------
 echo "Disabling Jenkins setup wizard..."
 
 mkdir -p /var/lib/jenkins
 chown -R jenkins:jenkins /var/lib/jenkins
 
-# Skip plugin installation wizard
 echo "2.0" > /var/lib/jenkins/jenkins.install.UpgradeWizard.state
 
-# Force Jenkins to think setup is completed
 mkdir -p /var/lib/jenkins/init.groovy.d
 
 cat <<EOF > /var/lib/jenkins/init.groovy.d/basic-security.groovy
@@ -118,6 +105,16 @@ Jenkins.instance.setInstallState(jenkins.install.InstallState.INITIAL_SETUP_COMP
 EOF
 
 chown -R jenkins:jenkins /var/lib/jenkins
+
+# ----------------------------
+# Increase startup timeout (FIX systemd issue)
+# ----------------------------
+mkdir -p /etc/systemd/system/jenkins.service.d
+
+cat <<EOF > /etc/systemd/system/jenkins.service.d/override.conf
+[Service]
+TimeoutStartSec=600
+EOF
 
 # ----------------------------
 # Start Jenkins
@@ -130,11 +127,11 @@ systemctl enable jenkins
 systemctl start jenkins
 
 # ----------------------------
-# Wait for Jenkins to be ready
+# Wait for Jenkins
 # ----------------------------
 echo "Waiting for Jenkins to become available..."
 
-for i in {1..30}; do
+for i in {1..40}; do
   if nc -z localhost 8080; then
     echo "✅ Jenkins is up on port 8080"
     break
@@ -152,4 +149,3 @@ else
 fi
 
 echo "===== Jenkins setup completed at $(date) ====="
-``
