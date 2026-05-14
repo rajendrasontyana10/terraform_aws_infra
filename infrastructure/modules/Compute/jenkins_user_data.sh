@@ -6,14 +6,12 @@ exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&
 
 echo "===== Starting Jenkins setup at $(date) ====="
 
-# ----------------------------
 # Wait for network
-# ----------------------------
 sleep 120
 
 echo "Updating system..."
 
-# Retry yum update (important for cloud-init timing)
+# Retry yum update
 for i in {1..5}; do
   yum clean all
   yum update -y && break || sleep 20
@@ -37,26 +35,22 @@ terraform -version
 echo "✅ Terraform installed"
 
 # ----------------------------
-# Install Java 21
+# Install Java 17 (✅ FIXED)
 # ----------------------------
-echo "Installing Java 21..."
+echo "Installing Java 17..."
 
-cd /opt
-curl -LO https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz
-tar -xzf amazon-corretto-21-x64-linux-jdk.tar.gz
-mv amazon-corretto-21.* /opt/java21
+yum install -y java-17-amazon-corretto
 
-echo "✅ Java installed at /opt/java21"
+java -version
+echo "✅ Java 17 installed"
 
 # ----------------------------
 # Install Jenkins
 # ----------------------------
 echo "Installing Jenkins..."
 
-# Clean old repo (important)
 rm -f /etc/yum.repos.d/jenkins.repo
 
-# Correct repo config
 cat <<EOF > /etc/yum.repos.d/jenkins.repo
 [jenkins]
 name=Jenkins-stable
@@ -66,44 +60,26 @@ enabled=1
 gpgkey=https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 EOF
 
-# Import correct GPG key
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 
-# Install Jenkins with retry + fallback
+# Install Jenkins (with retry)
 for i in {1..3}; do
   yum install -y jenkins && break || sleep 20
 done
 
-# Fallback if needed (ensures install always succeeds)
+# Fallback
 if ! rpm -qa | grep -q jenkins; then
   echo "Retrying Jenkins install without GPG check..."
   yum install -y jenkins --nogpgcheck
 fi
 
-# Verify installation
+# Verify
 if rpm -qa | grep -q jenkins; then
-  echo "✅ Jenkins installed successfully"
+  echo "✅ Jenkins installed"
 else
-  echo "❌ Jenkins installation FAILED"
+  echo "❌ Jenkins install failed"
   exit 1
 fi
-
-# ----------------------------
-# Configure Jenkins to use Java 21
-# ----------------------------
-echo "Configuring Jenkins..."
-
-cat <<EOF > /etc/sysconfig/jenkins
-JAVA_HOME=/opt/java21
-JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true"
-EOF
-
-mkdir -p /etc/systemd/system/jenkins.service.d
-
-cat <<EOF > /etc/systemd/system/jenkins.service.d/override.conf
-[Service]
-Environment="JAVA_HOME=/opt/java21"
-EOF
 
 # ----------------------------
 # Start Jenkins
@@ -115,8 +91,24 @@ systemctl daemon-reload
 systemctl enable jenkins
 systemctl start jenkins
 
-# Wait for Jenkins to start
-sleep 20
+# Wait until port opens
+echo "Waiting for Jenkins to become available..."
 
-# Verify service
+for i in {1..20}; do
+  if nc -z localhost 8080; then
+    echo "✅ Jenkins is up on port 8080"
+    break
+  fi
+  echo "Waiting for Jenkins..."
+  sleep 10
+done
+
+# Final verification
 if systemctl is-active --quiet jenkins; then
+  echo "✅ Jenkins service is running"
+else
+  echo "❌ Jenkins service failed"
+  exit 1
+fi
+
+echo "===== Jenkins setup completed at $(date) ====="

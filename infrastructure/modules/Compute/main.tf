@@ -31,7 +31,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 
 resource "aws_instance" "jenkins" {
   ami                  = var.ami
-  instance_type        = "t2.micro"
+  instance_type        = "t3.micro"
   subnet_id            = var.subnet_id
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
 
