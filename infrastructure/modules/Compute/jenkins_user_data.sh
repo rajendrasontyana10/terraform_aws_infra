@@ -6,7 +6,17 @@ exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&
 
 echo "===== Starting Jenkins setup at $(date) ====="
 
+# ----------------------------
+# Add swap (CRITICAL for Jenkins)
+# ----------------------------
+fallocate -l 2G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+
+# ----------------------------
 # Wait for network
+# ----------------------------
 sleep 120
 
 echo "Updating system..."
@@ -35,14 +45,21 @@ terraform -version
 echo "✅ Terraform installed"
 
 # ----------------------------
-# Install Java 17 (✅ FIXED)
+# Install Java 21 (✅ FIXED)
 # ----------------------------
-echo "Installing Java 17..."
+echo "Installing Java 21..."
 
-yum install -y java-17-amazon-corretto
+cd /opt
+wget https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz
+tar -xzf amazon-corretto-21-x64-linux-jdk.tar.gz
+mv amazon-corretto-21.* /opt/java21
+
+# Set Java 21 as default (IMPORTANT)
+alternatives --install /usr/bin/java java /opt/java21/bin/java 1
+alternatives --set java /opt/java21/bin/java
 
 java -version
-echo "✅ Java 17 installed"
+echo "✅ Java 21 installed"
 
 # ----------------------------
 # Install Jenkins
@@ -62,7 +79,7 @@ EOF
 
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 
-# Install Jenkins (with retry)
+# Install Jenkins (retry)
 for i in {1..3}; do
   yum install -y jenkins && break || sleep 20
 done
@@ -91,10 +108,10 @@ systemctl daemon-reload
 systemctl enable jenkins
 systemctl start jenkins
 
-# Wait until port opens
+# Wait until Jenkins is ready
 echo "Waiting for Jenkins to become available..."
 
-for i in {1..20}; do
+for i in {1..30}; do
   if nc -z localhost 8080; then
     echo "✅ Jenkins is up on port 8080"
     break
