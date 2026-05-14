@@ -14,6 +14,9 @@ chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
 
+# Make swap permanent
+echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+
 # ----------------------------
 # Wait for network
 # ----------------------------
@@ -28,9 +31,9 @@ for i in {1..5}; do
 done
 
 # ----------------------------
-# Install required tools + fonts (🔥 FINAL FIX)
+# Install required tools + fonts
 # ----------------------------
-yum install -y curl unzip wget fontconfig dejavu-sans-fonts
+yum install -y curl unzip wget fontconfig dejavu-sans-fonts nc
 
 # ----------------------------
 # Install Terraform
@@ -63,7 +66,7 @@ java -version
 echo "✅ Java 21 installed"
 
 # ----------------------------
-# Install Jenkins (clean repo)
+# Install Jenkins
 # ----------------------------
 echo "Installing Jenkins..."
 
@@ -77,7 +80,6 @@ enabled=1
 gpgcheck=0
 EOF
 
-# Install Jenkins
 yum install -y jenkins
 
 if rpm -qa | grep -q jenkins; then
@@ -88,13 +90,12 @@ else
 fi
 
 # ----------------------------
-# Disable setup wizard (NO plugin hang)
+# Prepare Jenkins home
 # ----------------------------
-echo "Disabling Jenkins setup wizard..."
-
 mkdir -p /var/lib/jenkins
 chown -R jenkins:jenkins /var/lib/jenkins
 
+# Disable setup wizard (no plugin hang)
 echo "2.0" > /var/lib/jenkins/jenkins.install.UpgradeWizard.state
 
 mkdir -p /var/lib/jenkins/init.groovy.d
@@ -107,13 +108,14 @@ EOF
 chown -R jenkins:jenkins /var/lib/jenkins
 
 # ----------------------------
-# Increase startup timeout (FIX systemd issue)
+# SYSTEMD FIXES (🔥 IMPORTANT)
 # ----------------------------
 mkdir -p /etc/systemd/system/jenkins.service.d
 
 cat <<EOF > /etc/systemd/system/jenkins.service.d/override.conf
 [Service]
 TimeoutStartSec=600
+Environment="JENKINS_OPTS=--httpPort=8080 --httpListenAddress=0.0.0.0"
 EOF
 
 # ----------------------------
@@ -127,7 +129,7 @@ systemctl enable jenkins
 systemctl start jenkins
 
 # ----------------------------
-# Wait for Jenkins
+# Wait for Jenkins to be ready
 # ----------------------------
 echo "Waiting for Jenkins to become available..."
 
@@ -140,7 +142,9 @@ for i in {1..40}; do
   sleep 10
 done
 
+# ----------------------------
 # Final verification
+# ----------------------------
 if systemctl is-active --quiet jenkins; then
   echo "✅ Jenkins service is running"
 else
