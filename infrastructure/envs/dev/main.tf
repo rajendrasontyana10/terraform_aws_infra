@@ -56,7 +56,7 @@ module "alb" {
   vpc_id      = module.vpc.vpc_id
   subnet_ids  = module.vpc.public_subnet
   alb_sg_id   = module.security_group.alb_sg_id
-  instance_id = module.compute.instance_id
+  instance_id = module.compute.jenkins_instance_id
 }
 
 output "alb_dns_name" {

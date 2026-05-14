@@ -23,7 +23,7 @@ resource "aws_lb_target_group" "jenkins" {
     unhealthy_threshold = 2
     timeout             = 5
     interval            = 30
-    path                = "/"
+    path                = "/login"
     matcher             = "200"
   }
 
@@ -45,6 +45,6 @@ resource "aws_lb_listener" "jenkins" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    target_group_arn = aws_lb_target_group.jenkins.arn
   }
 }
