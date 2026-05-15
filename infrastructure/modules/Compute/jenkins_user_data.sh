@@ -65,6 +65,10 @@ alternatives --set java /opt/java21/bin/java
 java -version
 echo "✅ Java 21 installed"
 
+sudo yum install git -y
+git --version
+echo "✅ Git installed"
+
 # ----------------------------
 # Install Jenkins
 # ----------------------------
