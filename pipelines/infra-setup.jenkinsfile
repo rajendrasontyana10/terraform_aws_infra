@@ -152,6 +152,7 @@ pipeline {
             script {
                 echo "Pipeline execution completed"
                 cleanWs()
+                deleteDir()
             }
         }
         success {
