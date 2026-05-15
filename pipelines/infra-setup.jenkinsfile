@@ -18,7 +18,7 @@ pipeline {
             description: 'AWS Account ID to assume role for deployment'
         )
         string(
-            name: 'AWS_AWS_REGION',
+            name: 'AWS_REGION',
             defaultValue: 'us-east-1',
             description: 'AWS AWS_REGION to deploy resources'
         )
@@ -46,8 +46,10 @@ pipeline {
 
     environment {
         TF_ROOT = 'infrastructure'
+        ENV = "${params.ENV}"
         TF_ENV_DIR = "${TF_ROOT}/envs/${params.ENV}"
-        AWS_AWS_REGION = "${params.AWS_AWS_REGION}"
+        AWS_IAM_ROLE = "${params.AWS_IAM_ROLE}"
+        AWS_REGION = "${params.AWS_REGION}"
         AWS_ACCOUNT_ID = "${params.AWS_ACCOUNT_ID}"
     }
 
@@ -70,12 +72,11 @@ pipeline {
 
         stage('Initialize Terraform') {
             steps {
-                dir('terraform') {
+                dir("${env.TF_ENV_DIR}") {
                     script {
                         try {
-                            withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, AWS_REGION: env.AWS_AWS_REGION) {
-                                echo "Running terraform init with backend config for ${env.DEPLOY_ENV}"
-                                sh "cd infrastructure/envs/${env.DEPLOY_ENV}"
+                            withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, region: env.AWS_REGION) {
+                                echo "Running terraform init with backend config for ${env.ENV}"
                                 sh "terraform init"
                             }
                             echo "Terraform init successful"
@@ -89,31 +90,31 @@ pipeline {
 
         stage('Validate & Plan') {
             steps {
-                withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, AWS_REGION: env.AWS_REGION) {
-                dir('terraform') {
+                dir("${env.TF_ENV_DIR}") {
+                    withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, region: env.AWS_REGION) {
                     script {
                     try {
                         echo "Running terraform validate..."
                         sh "terraform validate"
                         echo "Validation passed"
 
-                        if (env.TF_ACTION == 'apply') {
+                        if (params.TF_ACTION == 'apply') {
                         echo "Planning to apply resources..."
-                        sh "terraform plan"
+                        sh "terraform plan -out=tfplan"
                         sh "ls -lh tfplan*"
                         sh "terraform show -no-color tfplan > tfplan.txt"
-                        } else if (env.TF_ACTION == 'destroy') {
+                        } else if (params.TF_ACTION == 'destroy') {
                         echo "Planning to destroy resources..."
                         sh "terraform plan -destroy -out=tfplan"
                         sh "ls -lh tfplan*"
                         sh "terraform show -no-color tfplan > tfplan.txt"
-                        } else if (env.TF_ACTION == 'nothing') {
+                        } else if (params.TF_ACTION == 'nothing') {
                         echo "Doing nothing..."
                         // Skip tfplan-related commands
                         } else {
-                        error "Invalid TF_ACTION: ${env.TF_ACTION}"
+                        error "Invalid TF_ACTION: ${params.TF_ACTION}"
                         }
-                        echo "Terraform plan completed for ${env.DEPLOY_ENV}"
+                        echo "Terraform plan completed for ${env.ENV}"
                     } catch (err) {
                         error "Terraform plan failed: ${err.getMessage()}"
                     }
@@ -124,31 +125,27 @@ pipeline {
             }
 
             stage('Manual Approval') {
-            steps {
-                script {
-                    def userInput = input(
-                        id: 'ApprovalForDeploy',
-                        message: "Do you want to apply Terraform changes to ${params.ENV}?",
-                        ok: 'Apply',
-                        submitter: 'admin'
-                    )
-                    echo "Approved by: ${userInput}"
+                    when {
+                        expression { params.TF_ACTION != 'nothing' }
+                    }
+                    steps {
+                        input message: "Apply Terraform changes to ${params.ENV}?"
+                    }
                 }
-            }
-        }
+
 
         stage('Apply Terraform Changes') { 
             when {
-                expression { return env.TF_ACTION != 'nothing' }
+                expression { return params.TF_ACTION != 'nothing' }
             }
             steps {
-                dir('terraform') {
+                dir("${env.TF_ENV_DIR}") {
                     script {
                         try {
                             echo "Checking if tfplan exists before apply..."
                             sh "test -f tfplan || { echo 'tfplan file missing. Aborting.'; exit 1; }"
 
-                            withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, AWS_REGION: env.AWS_REGION) {
+                            withAWS(roleAccount: env.AWS_ACCOUNT_ID, role: env.AWS_IAM_ROLE, region: env.AWS_REGION) {
                                 echo "Running terraform apply..."
                                 sh "terraform apply -input=false tfplan"
                             }
@@ -165,7 +162,7 @@ pipeline {
             steps {
                 script {
                     echo "Displaying Terraform outputs"
-                    dir("${TF_ROOT}") {
+                    dir("${env.TF_ENV_DIR}") {
                         sh 'terraform output'
                     }
                 }
