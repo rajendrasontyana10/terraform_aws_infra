@@ -14,7 +14,7 @@ pipeline {
         )
         string(
             name: 'AWS_PROFILE',
-            defaultValue: '304935836562',
+            defaultValue: '261513860477',
             description: 'AWS CLI profile to use for deployment'
         )
         string(
